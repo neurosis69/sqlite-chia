@@ -38,6 +38,9 @@ fn create_functions(db: &rusqlite::Connection) -> anyhow::Result<()> {
     db.create_scalar_function("zstd_decompress_blob", 1, flags, |ctx| {
         zstd_decompress_blob(ctx).map_err(ah)
     })?;
+    db.create_scalar_function("chia_decompress_fullblock_json", 1, flags, |ctx| {
+        chia_decompress_fullblock_json(ctx).map_err(ah)
+    })?;
     Ok(())
 }
 
@@ -95,6 +98,16 @@ fn zstd_decompress_blob<'a>(ctx: &Context) -> anyhow::Result<ToSqlOutput<'a>> {
     let blob = ctx.get::<Vec<u8>>(0)?;
     let out = zstd::stream::decode_all(blob.as_slice())?;
     Ok(ToSqlOutput::Owned(Value::Blob(out)))
+}
+
+fn chia_decompress_fullblock_json<'a>(ctx: &Context) -> anyhow::Result<ToSqlOutput<'a>> {
+    use chia_traits::streamable::Streamable;
+
+    let blob = ctx.get::<Vec<u8>>(0)?;
+    let out = zstd::stream::decode_all(blob.as_slice())?;
+    let block = chia_protocol::FullBlock::parse::<true>(&mut Cursor::new(&out))?;
+    let json = serde_json::to_string(&block)?;
+    Ok(ToSqlOutput::Owned(Value::Text(json)))
 }
 
 #[cfg(test)]
