@@ -14,19 +14,21 @@ crate-type = ["cdylib", "staticlib"]
 name = "chia"
 
 [dependencies]
-anyhow = "1.0.54"
-bech32 = "0.8.1"
+anyhow = "1.0.86"
+#bech32 = "0.8.1"
+bech32 = "0.9.1"
 # Needed until serde (PR127#) is merged.
 chia-protocol = { git = "https://github.com/xchdata/chia_rs", branch = "serde", features = ["serde"] }
 chia-traits = { git = "https://github.com/xchdata/chia_rs", branch = "serde" }
-serde_json = "1.0.91"
-zstd = "0.12.2"
-sha2 = "0.10.2"
+serde_json = "1.0.120"
+zstd = "0.13.2"
+sha2 = "0.10.8"
+syn = "2.0.70"
 
 [dependencies.rusqlite]
-package = "rusqlite-le"
-version = "0.24.2"
-features = ["functions", "blob", "bundled", "serde_json"]
+package = "rusqlite"
+version = "0.31.0"
+features = ["loadable_extension", "functions", "blob", "bundled", "serde_json"]
 
 [dev-dependencies]
 pretty_assertions = "1.1.0"
