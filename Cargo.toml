@@ -15,7 +15,6 @@ name = "chia"
 
 [dependencies]
 anyhow = "1.0.86"
-#bech32 = "0.8.1"
 bech32 = "0.9.1"
 # Needed until serde (PR127#) is merged.
 chia-protocol = { git = "https://github.com/xchdata/chia_rs", branch = "serde", features = ["serde"] }
