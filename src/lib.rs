@@ -41,6 +41,12 @@ fn create_functions(db: &rusqlite::Connection) -> anyhow::Result<()> {
     db.create_scalar_function("chia_decompress_fullblock_json", 1, flags, |ctx| {
         chia_decompress_fullblock_json(ctx).map_err(ah)
     })?;
+    db.create_scalar_function("hex_to_int", 1, flags, |ctx| {
+        hex_to_int_fn(ctx).map_err(ah)
+    })?;
+    db.create_scalar_function("int_to_hex", 2, flags, |ctx| {
+        int_to_hex_fn(ctx).map_err(ah)
+    })?;
     Ok(())
 }
 
@@ -101,14 +107,32 @@ fn zstd_decompress_blob<'a>(ctx: &Context) -> anyhow::Result<ToSqlOutput<'a>> {
 
 fn chia_decompress_fullblock_json<'a>(ctx: &Context) -> anyhow::Result<ToSqlOutput<'a>> {
     use chia_traits::streamable::Streamable;
-
     let blob = ctx.get::<Vec<u8>>(0)?;
     let out = zstd::stream::decode_all(blob.as_slice())?;
     let block = chia_protocol::FullBlock::parse::<true>(&mut Cursor::new(&out))?;
     let json = serde_json::to_string(&block)?;
     Ok(ToSqlOutput::Owned(Value::Text(json)))
 }
- 
+
+fn hex_to_int_fn<'a>(ctx: &Context) -> anyhow::Result<ToSqlOutput<'a>> {
+    let hex_str = ctx.get::<String>(0)?;
+    let int_value = i64::from_str_radix(&hex_str, 16)?;
+    Ok(ToSqlOutput::Owned(Value::Integer(int_value)))
+}
+
+fn int_to_hex_fn<'a>(ctx: &Context) -> anyhow::Result<ToSqlOutput<'a>> {
+    let int_value = ctx.get::<i64>(0)?;
+    let length = ctx.get::<i64>(1)? as usize;
+    let hex_str = format!("{:X}", int_value);
+    let padded_hex_str = if hex_str.len() < length {
+        format!("{:0>width$}", hex_str, width = length)
+    } else {
+        hex_str
+    };
+    Ok(ToSqlOutput::Owned(Value::Text(padded_hex_str)))
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,4 +242,56 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn chia_decompress_fullblock_json_works() -> anyhow::Result<()> {
+        let db = open_db()?;
+        // Example zstd compressed blob of a FullBlock, replace this with actual compressed data
+        let compressed_blob = vec![
+            /* compressed data here */
+        ];
+
+        // Expected JSON string of the decompressed FullBlock, replace this with the expected JSON
+        let expected_json = r#"{
+            "block": {
+                /* block data here */
+            }
+        }"#;
+
+        assert_eq!(
+            expected_json.to_string(),
+            db.query_row("select chia_decompress_fullblock_json(?)", [compressed_blob], |r| r.get::<usize, String>(0))?
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn hex_to_int_works() -> anyhow::Result<()> {
+        let db = open_db()?;
+        assert_eq!(
+            499,
+            db.query_row("select hex_to_int('000000000000000000000000000001F3')", [], |r| r
+                .get::<usize, i64>(0))?
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn int_to_hex_works() -> anyhow::Result<()> {
+        let db = open_db()?;
+        assert_eq!(
+            "0000000000000000000000000000003A".to_string(),
+            db.query_row("select int_to_hex(58, 32)", [], |r| r.get::<usize, String>(0))?
+        );
+        assert_eq!(
+            "3A".to_string(),
+            db.query_row("select int_to_hex(58, 2)", [], |r| r.get::<usize, String>(0))?
+        );
+        assert_eq!(
+            "00003A".to_string(),
+            db.query_row("select int_to_hex(58, 6)", [], |r| r.get::<usize, String>(0))?
+        );
+        Ok(())
+    }   
+    
 }
